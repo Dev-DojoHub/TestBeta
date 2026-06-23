@@ -2552,3 +2552,121 @@ Tabs.Main:AddToggle({
         _G.AutoHop_Dough = Value
     end
 })
+
+Tabs.Main:AddSection("Bones")
+
+Tabs.Main:AddToggle({
+    Name = "Auto Farm Bones",
+    Description = "Tự Động Farm Bones",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoFarm_Bone = Value
+    end
+})
+
+spawn(function()
+    local player = game.Players.LocalPlayer
+    local BonesTable = {
+        "Reborn Skeleton",
+        "Living Zombie",
+        "Demonic Soul",
+        "Possessed Mummy"
+    }
+
+    while wait(0.5) do
+        if not _G.AutoFarm_Bone then continue end
+
+        pcall(function()
+            local char = player.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+           
+            local questUI =
+                player.PlayerGui:FindFirstChild("Main")
+                and player.PlayerGui.Main:FindFirstChild("Quest")
+
+            local bone = GetConnectionEnemies(BonesTable)
+
+            
+            if _G.AcceptQuestB and questUI and not questUI.Visible then
+                local questPos = CFrame.new(-9516.99316,172.01718,6078.46533)
+                _tp(questPos)
+
+                repeat wait(2)
+                until not _G.AutoFarm_Bone
+                   or (questPos.Position - root.Position).Magnitude <= 50
+
+                if not _G.AutoFarm_Bone then return end
+
+                local questData = {
+                    {"StartQuest","HauntedQuest2",2},
+                    {"StartQuest","HauntedQuest2",1},
+                    {"StartQuest","HauntedQuest1",1},
+                    {"StartQuest","HauntedQuest1",2}
+                }
+
+                game.ReplicatedStorage.Remotes.CommF_:InvokeServer(
+                    unpack(questData[math.random(1,#questData)])
+                )
+            end
+
+           
+            if bone then
+                repeat
+                    wait()
+                    Attack.Kill(bone, true)
+                until not _G.AutoFarm_Bone
+                   or not bone.Parent
+                   or bone.Humanoid.Health <= 0
+            else
+            
+                _tp(CFrame.new(-9495.6806640625, 453.58624267578125, 5977.3486328125))
+            end
+        end)
+    end
+end)
+
+
+Tabs.Main:AddToggle({
+Name = "Auto Soul Reaper", 
+Description = "Tự Động Boss Xương", 
+Default = false,
+Callback = function(Value)
+  _G.AutoHytHallow = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    if _G.AutoHytHallow then
+      pcall(function()
+        local v = GetConnectionEnemies("Soul Reaper")
+	    if v then
+          repeat task.wait() Attack.Kill(v,_G.AutoHytHallow) until v.Humanoid.Health <= 0 or _G.AutoHytHallow == false
+        else
+          if not GetBP("Hallow Essence") then
+            repeat task.wait(.1)replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1)until _G.AutoHytHallow == false or GetBP("Hallow Essence")
+          else
+            repeat wait(.1) _tp(CFrame.new(-8932.322265625, 146.83154296875, 6062.55078125))until _G.AutoHytHallow == false or (plr.Character.HumanoidRootPart.CFrame == CFrame.new(-8932.322265625, 146.83154296875, 6062.55078125))
+		    EquipWeapon("Hallow Essence")
+          end
+        end
+      end)
+    end
+  end
+end)
+RanBone = Tabs.Main:AddToggle({
+Name = "Auto Random Bones", 
+Description = "Tự Động Random Xương", 
+Default = false,
+Callback = function(Value)
+  _G.Auto_Random_Bone = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    pcall(function()
+      if _G.Auto_Random_Bone then    
+  	    repeat task.wait() replicated.Remotes.CommF_:InvokeServer("Bones","Buy",1,1) until not _G.Auto_Random_Bone
+      end
+    end)
+  end
+end)
