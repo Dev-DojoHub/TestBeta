@@ -1589,3 +1589,275 @@ spawn(function()
         end)
     end
 end)
+Tabs.Main:AddSection("Main")
+
+FarmLevel = Tabs.Main:AddToggle({
+    Name = "Auto Farm Level",
+    Description = "Tự Động Cày Cấp",
+    Default = false,
+    Callback = function(Value)
+        _G.Level = Value
+        if not Value then
+            alreadyTeleported = false
+            teleporting = false
+        end
+    end
+})
+
+local alreadyTeleported = false
+local teleporting = false
+
+local function IsInSubmergedIsland()
+    local char = plr.Character
+    if not char then return false end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+
+    local islandXZ = Vector3.new(11520.8017578125, 0, 9829.513671875)
+    local playerXZ = Vector3.new(hrp.Position.X, 0, hrp.Position.Z)
+    return (playerXZ - islandXZ).Magnitude < 2000
+end
+
+task.spawn(function()
+    while task.wait(Sec) do
+        if _G.Level then
+            pcall(function()
+                local char = plr.Character or plr.CharacterAdded:Wait()
+                local Root = char:WaitForChild("HumanoidRootPart")
+                if not Root then return end
+
+                local level = plr.Data.Level.Value
+                local inSub = IsInSubmergedIsland()
+                local questUI = plr.PlayerGui.Main.Quest
+                local QuestTitle = questUI.Visible and questUI.Container.QuestTitle.Title.Text or ""
+
+                if level >= 2600 and not inSub and not teleporting and not alreadyTeleported then
+                    teleporting = true
+                    
+                    local npcPos = CFrame.new(-16269.7041, 25.2288494, 1373.65955)
+                    local teleportAttempts = 0
+                    
+                    repeat 
+                        task.wait(Sec)
+                        _tp(npcPos)
+                        teleportAttempts = teleportAttempts + 1
+                    until not _G.Level or (Root.Position - npcPos.Position).Magnitude <= 8 or teleportAttempts > 20
+
+                    if not _G.Level then 
+                        teleporting = false
+                        return 
+                    end
+
+                    task.wait(1)
+                    
+                    pcall(function()
+                        local args = {"TravelToSubmergedIsland"} 
+                        game:GetService("ReplicatedStorage").Modules.Net:FindFirstChild("RF/SubmarineWorkerSpeak"):InvokeServer(unpack(args))
+                    end)
+
+                    local timeout = tick()
+                    repeat 
+                        task.wait(0.5)
+                        local currentInSub = IsInSubmergedIsland()
+                        local farFromNPC = (Root.Position - npcPos.Position).Magnitude > 50
+                        
+                        if currentInSub or farFromNPC then
+                            break
+                        end
+                    until not _G.Level or tick() - timeout > 15
+
+                    task.wait(2)
+                    alreadyTeleported = true
+                    teleporting = false
+                    
+                elseif inSub or level < 2600 then
+                    alreadyTeleported = true
+                    teleporting = false
+
+                    local questData = QuestNeta()
+                    
+                    if not questData or not questData[1] then
+                        task.wait(1)
+                        return
+                    end
+                    
+                    if questUI.Visible and not string.find(QuestTitle, questData[1]) then
+                        replicated.Remotes.CommF_:InvokeServer("AbandonQuest")
+                        task.wait(0.2)
+                        return
+                    end
+
+                    if not questUI.Visible then
+                        local questPos = questData[6]
+                        if questPos then
+                            _tp(questPos)
+                            task.wait(2)
+                            
+                            if (Root.Position - questPos.Position).Magnitude <= 10 then
+                                pcall(function()
+                                    replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
+                                end)
+                                task.wait(1)
+                            end
+                        else
+                            pcall(function()
+                                replicated.Remotes.CommF_:InvokeServer("StartQuest", questData[3], questData[2])
+                            end)
+                            task.wait(1)
+                        end
+                        return
+                    end
+
+                    local enemyName = questData[1]
+                    
+                    local foundMob = false
+                    for _, v in pairs(workspace.Enemies:GetChildren()) do
+                        if v.Name == enemyName and Attack.Alive(v) then
+                            foundMob = true
+                            repeat
+                                task.wait(Sec)
+                                _tp(v.HumanoidRootPart.CFrame * CFrame.new(0,20,0))
+                                Attack.Kill(v, _G.Level)
+                                
+                                if not questUI.Visible then
+                                    break
+                                end
+                            until not _G.Level or not v.Parent or v.Humanoid.Health <= 0
+                            break
+                        end
+                    end
+                    
+                    if not foundMob then
+                        for _, v in pairs(replicated:GetChildren()) do
+                            if v.Name == enemyName and Attack.Alive(v) then
+                                foundMob = true
+                                _tp(v.HumanoidRootPart.CFrame * CFrame.new(0,20,0))
+                                break
+                            end
+                        end
+                    end
+                    
+                    if not foundMob then
+                        for _, spawnPoint in pairs(workspace["_WorldOrigin"].EnemySpawns:GetChildren()) do
+                            if string.find(spawnPoint.Name, enemyName) then
+                                _tp(spawnPoint.CFrame * CFrame.new(0, 20, 0))
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+        else
+            teleporting = false
+            alreadyTeleported = false
+        end
+    end
+end)
+
+ClosetMons = Tabs.Main:AddToggle({
+Name = "Auto Farm Nearest", 
+Description = "Tự Động Kẻ Địch Gần", 
+Default = false, 
+Callback = function(Value)
+  _G.AutoFarmNear = Value
+end})
+spawn(function()
+  while wait() do
+    pcall(function()
+      if _G.AutoFarmNear then
+        for i,v in pairs(workspace.Enemies:GetChildren()) do
+          if v:FindFirstChild("Humanoid") or v:FindFirstChild("HumanoidRootPart") then
+            if v.Humanoid.Health > 0 then
+              repeat wait() Attack.Kill(v,_G.AutoFarmNear) until not _G.AutoFarmNear or not v.Parent or v.Humanoid.Health <= 0
+            end
+          end
+        end
+      end
+    end)
+  end
+end)
+FactoryRaids = Tabs.Main:AddToggle({
+Name = "Auto Factory Raid", 
+Description = "Tự Động Nhà Máy Mỗi 1h 30p.", 
+Default = false,
+Callback = function(Value)
+  _G.AutoFactory = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    pcall(function()
+      if _G.AutoFactory then
+        local v = GetConnectionEnemies("Core")
+        if v then
+          repeat wait()
+            EquipWeapon(_G.SelectWeapon)
+            _tp(CFrame.new(448.46756, 199.356781, -441.389252))
+          until v.Humanoid.Health <= 0 or _G.AutoFactory == false
+        else
+          _tp(CFrame.new(448.46756, 199.356781, -441.389252))
+        end
+      end
+    end)
+  end
+end)
+
+CastleRaids = Tabs.Main:AddToggle({
+Name = "Auto Pirate Raid", 
+Description = "Tự Động Hải Tặc", 
+Default = false,
+Callback = function(Value)
+  _G.AutoRaidCastle = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    if _G.AutoRaidCastle then
+      pcall(function()
+      local CFrameCastleRaid = CFrame.new(-5496.17432, 313.768921, -2841.53027, 0.924894512, 7.37058015e-09, 0.380223751, 3.5881019e-08, 1, -1.06665446e-07, -0.380223751, 1.12297109e-07, 0.924894512)
+        if (CFrame.new(-5539.3115234375, 313.800537109375, -2972.372314453125).Position - Root.Position).Magnitude <= 500 then
+          for i,v in pairs(workspace.Enemies:GetChildren()) do
+            if v:FindFirstChild("HumanoidRootPart") and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+              if v.Name then
+                if (v.HumanoidRootPart.Position - Root.Position).Magnitude <= 2000 then
+                  repeat wait() Attack.Kill(v,_G.AutoRaidCastle) until not _G.AutoRaidCastle or not v.Parent or v.Humanoid.Health <= 0 or not workspace.Enemies:FindFirstChild(v.Name)
+                end
+              end
+            end
+          end
+        else
+          local Castle_Mob = {"Galley Pirate","Galley Captain","Raider","Mercenary","Vampire","Zombie","Snow Trooper","Winter Warrior","Lab Subordinate","Horned Warrior","Magma Ninja","Lava Pirate","Ship Deckhand","Ship Engineer","Ship Steward","Ship Officer","Arctic Warrior","Snow Lurker","Sea Soldier","Water Fighter"}
+          for i = 1,#Castle_Mob do
+            if replicated:FindFirstChild(Castle_Mob[i]) then
+              for _,v in pairs(replicated:GetChildren()) do
+                if table.find(Castle_Mob, v.Name) then _tp(CFrameCastleRaid) end
+              end
+            end
+          end
+        end
+      end)
+    end
+  end
+end)
+Tabs.Main:AddSection("Estoplasm")
+
+Ecto = Tabs.Main:AddToggle({
+Name = "Auto Farm Ectoplasm", 
+Description = "Tự Động Cày Nguyên Liệu", 
+Default = false,
+Callback = function(Value)
+  _G.AutoEctoplasm = Value
+end})
+spawn(function()
+  while wait(Sec) do
+    pcall(function()
+      if _G.AutoEctoplasm then
+        local EctoTable = {"Ship Deckhand","Ship Engineer","Ship Steward","Ship Officer","Arctic Warrior"}    
+        local v = GetConnectionEnemies(EctoTable)
+		if Attack.Alive(v) then
+		  repeat wait() Attack.Kill(v, _G.AutoEctoplasm)until not _G.AutoEctoplasm or not v.Parent or v.Humanoid.Health <= 0		        
+	    else
+	      replicated.Remotes.CommF_:InvokeServer("requestEntrance",Vector3.new(923.21252441406, 126.9760055542, 32852.83203125))
+	    end
+      end
+    end)
+  end
+end)
